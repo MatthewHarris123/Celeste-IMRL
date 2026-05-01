@@ -1,48 +1,97 @@
-# Celeste AI Gym
+# Celeste IMRL
 
-A Gymnasium-compatible environment for Celeste gameplay, providing an interface for reinforcement learning agents.
-
-## Overview
-
-This repository contains a custom Gym environment that interfaces with Celeste through TCP communication with the companion Celeste AI mod. This is a base environment implementation designed to be integrated with your own training code.
-
-## Features
-
-- **Custom Gym Environment**: Full gymnasium-compatible environment for Celeste gameplay
-- **Real-time Interface**: Direct communication with Celeste game through TCP socket
-- **Flexible Observation Space**: RGB frame observations from the game
-- **Multi-Binary Actions**: Support for all Celeste inputs (movement, jump, dash, grab)
-
-## Architecture
-
-```
-Python RL Environment (celeste-ai-gym)
-    ↕ TCP Socket Communication (port 5000)
-Celeste Game + AI Mod (celeste-ai-mod)
-```
+This project uses an environment seen at https://github.com/ethanrcampbell02/celeste-ai-gym, along side the companion mod https://github.com/ethanrcampbell02/celeste-ai-mod, to train an intrinsically motivated RL agent.
+Also uses https://github.com/RLE-Foundation/RLeXplore/tree/main
 
 ## Installation
 
 ### Prerequisites
 
 - Python 3.8+
-- Celeste game with the companion AI mod installed
+- Celeste game with a SLIGHTLY ALTERED companion AI mod installed
 
+### Altering the companion mod
+before installing the companion mod, go to "MadelAIneModule.cs" in the companion mod's source folder, find the "ApplyInputs" function, and change it to
+```C#
+private void ApplyInputs(JsonElement response)
+    {
+        try
+        {
+            // Parse input values from response
+            // Expected format: {"type": "ACK", "moveX": 0.0, "moveY": 0.0, "jump": false, "dash": false, "grab": false}
+            Vector2 aim = new Vector2(0, 0);
+            // Movement axes
+            if (response.TryGetProperty("moveX", out var moveXProp))
+            {
+                float moveX = moveXProp.GetSingle();
+                if (moveX == 0)
+                    GameplayBinds.MoveX.SetNeutral();
+                else
+                    GameplayBinds.MoveX.SetValue(moveX);
+                aim.X = moveX;
+            }
+            
+            if (response.TryGetProperty("moveY", out var moveYProp))
+            {
+                float moveY = moveYProp.GetSingle();
+                if (moveY == 0)
+                    GameplayBinds.MoveY.SetNeutral();
+                else
+                    GameplayBinds.MoveY.SetValue(moveY);
+                aim.Y=moveY;
+            }
+            
+            // Button presses
+            if (response.TryGetProperty("jump", out var jumpProp))
+            {
+                if (jumpProp.GetBoolean())
+                    GameplayBinds.Jump.Press();
+                else
+                    GameplayBinds.Jump.Release();
+            }
+            
+            if (response.TryGetProperty("dash", out var dashProp))
+            {
+                if (dashProp.GetBoolean()) {
+                    GameplayBinds.Aim.SetDirection(aim);
+                    GameplayBinds.Dash.Press();
+                }
+                else
+                    GameplayBinds.Dash.Release();
+            }
+            
+            if (response.TryGetProperty("grab", out var grabProp))
+            {
+                if (grabProp.GetBoolean())
+                    GameplayBinds.Grab.Press();
+                else
+                    GameplayBinds.Grab.Release();
+            }
+            
+            Logger.Debug(nameof(MadelAIneModule), "Applied inputs from Python");
+        }
+        catch (Exception ex)
+        {
+            Logger.Error(nameof(MadelAIneModule), $"Error applying inputs: {ex.Message}");
+        }
+    }
+```
+(Note the addition of changing "aim", this allows madeline to dash vertically and diagonally)
 ### Setup
 
 1. **Clone the repository**
    ```bash
    git clone <repository-url>
-   cd celeste-ai-gym
+   cd celeste-IMRL
    ```
 
-2. **Create virtual environment**
+3. **Create virtual environment**
    ```bash
    python -m venv venv
    source venv/bin/activate  # On Windows: venv\Scripts\activate
    ```
 
-3. **Install dependencies**
+4. **Install dependencies**
    ```bash
    pip install -r requirements.txt
    ```
@@ -57,24 +106,12 @@ python debug_env.py
 
 This will connect to a running Celeste instance and allow you to test the environment interface.
 
-### Using in Your Own Code
+### Running Agents
 
-```python
-from CelesteEnv import CelesteEnv
-
-# Create environment
-env = CelesteEnv()
-
-# Reset environment
-obs, info = env.reset()
-
-# Take actions
-action = env.action_space.sample()
-obs, reward, terminated, truncated, info = env.step(action)
-
-# Close when done
-env.close()
+```bash
+python .\PPO_forsaken.py
 ```
+(replace PPO_forsaken with any of the other IMRL.py files)
 
 ## Environment Details
 
